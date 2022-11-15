@@ -1,6 +1,7 @@
 import discord
 import unidecode
 import traceback
+import enum
 import time
 import sys
 import re
@@ -15,10 +16,65 @@ else:
     quit()
 
 bot = discord.Bot(activity=discord.Activity(type=discord.ActivityType.competing,
-                                            name="typing /faq"))
+                                            name="/faq"))
 
 i = 0
 users = {}
+
+responses = {
+    "install": ["How do i install BleachHack?",
+            """
+            1. Download Fabric for Minecraft 1.19.2, look up a tutorial if you don't know how.
+            2. Go to https://bleachhack.org/ and download the latest version.
+            3. If you get redirected to the adfoc.us site, click the skip button in the top right to continue to the download.
+            4. Put the jar you downloaded in your mods folder.
+            5. Run the game, if the BleachHack main menu appears it loaded successfully.
+            """],
+    "clickgui": ["How do i open the clickgui?",
+            "Press **Right Shift** to open the clickgui."],
+    "adfocus": ["Can't download/adfoc.us refused to connect??",
+            "Press the skip button in the top right to continue to the download."],
+    "bind": ["How do i bind/rebind/unbind a module?",
+            """
+            To bind a module, go in the clickgui and press a key while hoving over its bind setting. (if you can't access the ingame clickgui, bind the clickgui to a key on the main menu clickgui)
+            To remove a bind, press **Delete** while binding it.
+            """],
+    "autobuild": ["How can i add custom building to AutoBuild?",
+            "It currently isn't possible to do so but it will be added in a future release."],
+    "sliding": ["Why am i sliding like i'm on ice when moving?",
+            "Turn off AntiHunger."],
+    "dupe": ["How do i use ___ dupe?",
+            """
+            **__No support will be given for dupes__**
+            All dupes in BleachHack are patched on updated server.
+            """]
+    
+}
+
+class FaqView(discord.ui.View):
+    def __init__(self, page):
+        self.page = page
+        super().__init__()
+
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary, emoji="⬅")
+    async def prev_callback(self, button, interaction):
+        if self.page <= 0:
+            await interaction.response.defer()
+        else:
+            self.page -= 1
+            res = list(responses.values())[self.page]
+            await interaction.response.edit_message(embed=create_embed(
+                "BleachHack tech support [" + str(self.page + 1) + "/" + str(len(responses)) + "]", res[0], res[1]), view=self)
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, emoji="➡")
+    async def next_callback(self, button, interaction):
+        if self.page >= len(responses) - 1:
+            await interaction.response.defer()
+        else:
+            self.page += 1
+            res = list(responses.values())[self.page]
+            await interaction.response.edit_message(embed=create_embed(
+                "BleachHack tech support [" + str(self.page + 1) + "/" + str(len(responses)) + "]", res[0], res[1]), view=self)
 
 @bot.event
 async def on_ready():
@@ -45,74 +101,35 @@ async def on_message(message):
     except:
         traceback.print_exc()
 
-@bot.command(description="Frequently asked BleachHack questions.") #Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
-async def faq(ctx, question: discord.Option(required=False)):
-    response = get_response("how can " + str(question))
-    if response != None:
-         await ctx.respond(embed=response)
-    else:
-        await ctx.respond(embed=create_embed(
-            "BleachHack tech support",
-            "Frequently asked questions.",
-            """
-            /faq install
-            /faq gui
-            /faq adfocus
-            /faq bind
-            /faq sliding
-            /faq dupe
-            """))
+@bot.command(description="Frequently asked BleachHack questions.")
+async def faq(ctx, question: discord.Option(input_type=enum.Enum, desciption="The question to ask.", required=False, choices=list(responses.keys()))):
+    q = 0
+    if question in responses:
+        q = list(responses.keys()).index(question)
+    
+    res = list(responses.values())[q]
+    await ctx.respond(embed=create_embed(
+            "BleachHack tech support [" + str(q + 1) + "/" + str(len(responses)) + "]", res[0], res[1]), view=FaqView(q))
 
 def get_response(text):
     if "how" in text and ("install" in text or "download" in text):
-         return create_embed(
-            "BleachHack tech support",
-            "How do i install BleachHack?",
-            """
-            1. Download Fabric for Minecraft 1.19.2, look up a tutorial if you don't know how.
-            2. Go to https://bleachhack.org/ and download the latest version.
-            3. If you get redirected to the adfoc.us site, click the skip button in the top right to continue to the download.
-            4. Put the jar you downloaded in your mods folder.
-            5. Run the game, if the BleachHack main menu appears it loaded successfully.
-            """)
+        res = responses["install"]
     elif "open" in text and ("menu" in text or "gui" in text or "cheat" in text or "mod" in text):
-         return create_embed(
-            "BleachHack tech support",
-            "How do i open the clickgui?",
-            "Press **Right Shift** to open the clickgui.")
+        res = responses["clickgui"]
     elif "adfocus" in text or "adfoc.us" in text:
-         return create_embed(
-            "BleachHack tech support",
-            "Can't download/adfoc.us refused to connect??",
-            "Press the skip button in the top right to continue to the download.")
+        res = responses["adfocus"]
     elif ("how" in text or "can" in text) and "bind" in text:
-         return create_embed(
-            "BleachHack tech support",
-            "How do i bind/rebind/unbind a module?",
-            """
-            To bind a module, go in the clickgui and press a key while hoving over its bind setting. (if you can't access the ingame clickgui, bind the clickgui to a key on the main menu clickgui)
-            To remove a bind, press **Delete** while binding it.
-            """)
+        res = responses["bind"]
     elif "autobuild" in text:
-         return create_embed(
-            "BleachHack tech support",
-            "How can i add custom building to AutoBuild?",
-            "It currently isn't possible to do so but it will be added in a future release.")
+         res = responses["autobuild"]
     elif "slide" in text or "sliding" in text or "on ice" in text or "slippery" in text:
-         return create_embed(
-            "BleachHack tech support",
-            "Why am i sliding like i'm on ice when moving?",
-            "Turn off AntiHunger.")
+         res = responses["sliding"]
     elif ("possible" in text or "work" in text or "know" in text or "use" in text or "can" in text) and ("dupe" in text or "duplicat" in text):
-         return create_embed(
-            "BleachHack tech support",
-            "How do i use ___ dupe?",
-            """
-            **__No support will be given for dupes__**
-            If you don't know what a dupe is or how it works then you shouldn't be using it.
-            """)
+        res = responses["dupe"]
     else:
         return None
+
+    return create_embed("BleachHack tech support", res[0], res[1])
 
 # Returns if its a pleb or if the bot was explicitly pinged
 def should_reply(message):
